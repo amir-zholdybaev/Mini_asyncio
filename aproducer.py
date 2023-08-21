@@ -28,9 +28,9 @@ class Scheduler:
             if not self.ready:
                 # Find the nearest deadline
                 deadline, _, func = heapq.heappop(self.sleeping)
-                delta = deadline - time.time()
-                if delta > 0:
-                    time.sleep(delta)
+                difference = deadline - time.time()
+                if difference > 0:
+                    time.sleep(difference)
                 self.ready.append(func)
 
             while self.ready:
@@ -41,7 +41,41 @@ class Scheduler:
 sched = Scheduler()     # Behind scenes scheduler object
 
 
-# -----
+"""
+    Scheduler - Решает какие функции нужно вызвать сразу, а какие вызвать позже в определенное время
+
+    call_soon - Добавляет функцию в очередь готовых к выполнению
+
+    call_later - Добавляет в очередь ждущих выполнения функцию вместе с временем ее вызова в будущем
+
+    run - Запускает выполнение функций
+
+    Запускает цикл, который выполняется пока в очереди готовых или ждущих что то есть
+
+        Если в очереди готовых ничего нет:
+
+            То из очереди ждущих, достает функцию, у которой самое ближайшее время вызова
+
+            Вычисляет оставшееся до вызова время
+
+            Если оно больше нуля, то делает паузу на это время, а после добавляет в очередь готовых
+
+            Если оно равно или меньше нуля, то сразу добавляет в очередь готовых
+
+        А после достает все функции из очереди готовых и вызывает
+
+        Если в очереди готовых что то есть, то сразу достает все функции из очереди готовых и вызывает
+
+        Цикл начинает новую итерацию
+
+    Простыми словами метод run:
+    Достает все фукнции из очереди готовых и вызывает их
+    Если в очереди готовых ничего нет, то достает ближайщую функцию из очереди ждущих,
+    добавляет в очередь готовых, достает оттуда и вызывает
+
+"""
+
+# ==========================================================================================
 
 
 class AsyncQueue:
@@ -62,6 +96,16 @@ class AsyncQueue:
             callback(self.items.popleft())
         else:
             self.waiting.append(lambda: self.get(callback))
+
+
+aq = AsyncQueue()
+
+
+"""
+    pass
+"""
+
+# ==========================================================================================
 
 
 def producer(q, count):
@@ -86,7 +130,6 @@ def consumer(q):
     q.get(callback=_consume)
 
 
-q = AsyncQueue()
-sched.call_soon(lambda: producer(q, 10))
-sched.call_soon(lambda: consumer(q,))
+sched.call_soon(lambda: producer(aq, 10))
+sched.call_soon(lambda: consumer(aq,))
 sched.run()
