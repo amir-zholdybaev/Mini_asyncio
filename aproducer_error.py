@@ -1,7 +1,6 @@
-# aproducer.py
+# aproducer_error.py
 #
-# Async Producer-consumer problem.
-# Challenge: How to implement the same functionality, but no threads.
+# Example of returning results + errors in callback based code.
 
 import time
 from collections import deque
@@ -28,9 +27,9 @@ class Scheduler:
             if not self.ready:
                 # Find the nearest deadline
                 deadline, _, func = heapq.heappop(self.sleeping)
-                difference = deadline - time.time()
-                if difference > 0:
-                    time.sleep(difference)
+                delta = deadline - time.time()
+                if delta > 0:
+                    time.sleep(delta)
                 self.ready.append(func)
 
             while self.ready:
@@ -40,38 +39,59 @@ class Scheduler:
 
 sched = Scheduler()     # Behind scenes scheduler object
 
+# ===================================================================================================
 
-# ==========================================================================================
+
+# Class used to communicate both a normal value or an exception
+class Result:
+    def __init__(self, value=None, exc=None):
+        self.value = value
+        self.exc = exc
+
+    def result(self):
+        if self.exc:
+            raise self.exc
+        else:
+            return self.value
 
 
 class AsyncQueue:
     def __init__(self):
         self.items = deque()
         self.waiting = deque()    # All getters waiting for data
+        self._closed = False      # Can queue be used anymore?
+
+    def close(self):
+        self._closed = True
+        if self.waiting and not self.items:
+            for func in self.waiting:
+                sched.call_soon(func)
 
     def put(self, item):
+        if self._closed:
+            raise QueueClosed()
+
         self.items.append(item)
         if self.waiting:
             func = self.waiting.popleft()
-            # Do we call it right away? No. Schedule it to be called.
+            # Do we call it right away?
             sched.call_soon(func)
 
     def get(self, callback):
         # Wait until an item is available. Then return it
+        # Question: How does a closed queue interact with get()
         if self.items:
-            callback(self.items.popleft())
+            callback(Result(value=self.items.popleft()))  # Good result
         else:
-            self.waiting.append(lambda: self.get(callback))
+            # No items available (must wait)
+            if self._closed:
+                callback(Result(exc=QueueClosed()))     # Error result
+            else:
+                self.waiting.append(lambda: self.get(callback))
 
 
-aq = AsyncQueue()
-
-
-"""
+class QueueClosed(Exception):
     pass
-"""
-
-# ==========================================================================================
 
 
 def producer(q, count):
@@ -82,20 +102,22 @@ def producer(q, count):
             sched.call_later(1, lambda: _run(n + 1))
         else:
             print('Producer done')
-            q.put(None)
+            q.close()   # Means no more items will be produced
     _run(0)
 
 
 def consumer(q):
-    def _consume(item):
-        if item is None:
-            print('Consumer done')
-        else:
+    def _consume(result):
+        try:
+            item = result.result()
             print('Consuming', item)
             sched.call_soon(lambda: consumer(q))
+        except QueueClosed:
+            print("Consumer done")
     q.get(callback=_consume)
 
 
-sched.call_soon(lambda: producer(aq, 10))
-sched.call_soon(lambda: consumer(aq,))
+q = AsyncQueue()
+sched.call_soon(lambda: producer(q, 10))
+sched.call_soon(lambda: consumer(q,))
 sched.run()
