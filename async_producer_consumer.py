@@ -20,6 +20,13 @@ def producer(q, count):
     _run(0)
 
 
+"""
+    Производитель генерирует данные и кладет их в очередь и оповещает потребителя о положенных данных,
+    если есть ждущий потребитель
+    Делает он это каждые n секунд и до тех пор, пока не достигнет конца генерации
+"""
+
+
 def consumer(q):
     def _consume(item):
         if item is None:
@@ -27,8 +34,16 @@ def consumer(q):
         else:
             print('Consuming', item)
             sched.call_soon(lambda: consumer(q))
+
     q.get(callback=_consume)
 
+
+"""
+    Потребитель пытается получить данные
+    Если в очереди есть готовые данные, он берет их, обрабатывает и запрашивает по новой (sched.call_soon(lambda: consumer(q)))
+    Если в очереди данных нет, он их ждет
+    Повторяет он эти действия до тех пор, пока производитель не прекратит их производить
+"""
 
 sched.call_soon(lambda: producer(aq, 10))
 sched.call_soon(lambda: consumer(aq,))
