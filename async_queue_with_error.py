@@ -33,7 +33,7 @@ class AsyncQueue:
 
     def close(self):
         self._closed = True
-        if self.waiting and not self.items:  # There may be an error in this line of code
+        if self.waiting and not self.items:
             for func in self.waiting:
                 sched.call_soon(func)
 
