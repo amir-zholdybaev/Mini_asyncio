@@ -3,28 +3,27 @@ from collections import deque
 import heapq
 
 
-def awaitable():
-    yield
-
+class Awaitable:
+    def __await__(self):
+        yield
 
 def switch():
-    return awaitable()
-
+    return Awaitable()
 
 class Scheduler:
     def __init__(self):
         self.ready = deque()
-        self.sleeping = []
+        self.sleeping = [ ] 
         self.current = None    # Currently executing generator
         self.sequence = 0
 
-    def sleep(self, delay):
+    async def sleep(self, delay):
         deadline = time.time() + delay
         self.sequence += 1
         heapq.heappush(self.sleeping, (deadline, self.sequence, self.current))
         self.current = None  # "Disappear"
-        yield from switch()
-
+        await switch()       # Switch tasks
+        
     def new_task(self, coro):
         self.ready.append(coro)
 
@@ -50,18 +49,18 @@ class Scheduler:
 sched = Scheduler()    # Background scheduler object
 
 
-def countdown(n):
+async def countdown(n):
     while n > 0:
         print('Down', n)
-        yield from sched.sleep(4)
+        await sched.sleep(4)
         n -= 1
 
 
-def countup(stop):
+async def countup(stop):
     x = 0
     while x < stop:
         print('Up', x)
-        yield from sched.sleep(1)
+        await sched.sleep(1)
         x += 1
 
 
@@ -71,11 +70,6 @@ sched.run()
 
 
 """
-    Все тоже самое что и в планировщике из файла yield_from.py, только в методе sleep оператор yield заменен на
-    yield from switch(). Это нужно для наглядности кода. Функция switch просто возвращает генератор
-    awaitable, в котором прописан только оператор yield. В итоге метод sleep работает точно также как и с оператором
-    yield, только теперь на месте этого оператора написана строка yield from switch(), указывая своим названием на
-    то, что в этом месте происходит переключение, то есть возвращение контроля управления.
-
-    Для понимания работы планировщика необходимо знать как работает оператор yield from
+    Тоже самое, что и в файле generators/yield_from.py, только вместо операторов yield from ключевое слово await
+    работает точно также. Еще добавлено ключевое слово async, обозночая генератор корутиной.
 """
