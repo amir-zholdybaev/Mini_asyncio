@@ -49,9 +49,10 @@ def countup(stop):
     _run(0)
 
 
-sched.call_soon(lambda: countdown(5))
-sched.call_soon(lambda: countup(20))
-sched.run()
+if __name__ == '__main__':
+    sched.call_soon(lambda: countdown(5))
+    sched.call_soon(lambda: countup(20))
+    sched.run()
 
 
 """

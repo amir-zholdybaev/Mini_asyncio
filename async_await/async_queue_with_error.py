@@ -2,13 +2,14 @@ import time
 from collections import deque
 import heapq
 
-
 class Awaitable:
     def __await__(self):
         yield
 
+
 def switch():
     return Awaitable()
+
 
 class Scheduler:
     def __init__(self):
@@ -45,32 +46,65 @@ class Scheduler:
             except StopIteration:
                 pass
 
-
 sched = Scheduler()    # Background scheduler object
 
 
-async def countdown(n):
-    while n > 0:
-        print('Down', n)
-        await sched.sleep(4)
-        n -= 1
+class QueueClosed(Exception):
+    pass
 
 
-async def countup(stop):
-    x = 0
-    while x < stop:
-        print('Up', x)
+class AsyncQueue:
+    def __init__(self):
+        self.items = deque()
+        self.waiting = deque()
+        self._closed = False
+
+    def close(self):
+        self._closed = True
+        if self.waiting and not self.items:
+            sched.ready.append(self.waiting.popleft())  # Reschedule waiting tasks
+
+    async def put(self, item):
+        if self._closed:
+            raise QueueClosed()
+
+        self.items.append(item)
+        if self.waiting:
+            sched.ready.append(self.waiting.popleft())
+
+    async def get(self):
+        while not self.items:
+            if self._closed:
+                raise QueueClosed()
+            self.waiting.append(sched.current)   # Put myself to sleep
+            sched.current = None        # "Disappear"
+            await switch()              # Switch to another task
+
+        return self.items.popleft()
+
+
+aq = AsyncQueue()
+
+
+async def producer(q, count):
+    for n in range(count):
+        print('Producing', n)
+        await q.put(n)
         await sched.sleep(1)
-        x += 1
+
+    print('Producer done')
+    q.close()
 
 
-if __name__ == '__main__':
-    sched.new_task(countdown(5))
-    sched.new_task(countup(20))
-    sched.run()
+async def consumer(q):
+    try:
+        while True:
+            item = await q.get()
+            print('Consuming', item)
+    except QueueClosed:
+        print('Consumer done')
 
 
-"""
-    Тоже самое, что и в файле generators/yield_from.py, только вместо операторов yield from ключевое слово await
-    работает точно также. Еще добавлено ключевое слово async, обозночая генератор корутиной.
-"""
+sched.new_task(producer(aq, 10))
+sched.new_task(consumer(aq))
+sched.run()
