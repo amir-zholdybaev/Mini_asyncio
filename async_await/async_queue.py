@@ -1,7 +1,9 @@
 import time
 from collections import deque
 import heapq
-# from scheduler import Scheduler
+from scheduler import Scheduler
+
+sched = Scheduler() 
 
 
 class Awaitable:
@@ -11,45 +13,6 @@ class Awaitable:
 
 def switch():
     return Awaitable()
-
-
-class Scheduler:
-    def __init__(self):
-        self.ready = deque()
-        self.sleeping = [ ] 
-        self.current = None    # Currently executing generator
-        self.sequence = 0
-
-    async def sleep(self, delay):
-        deadline = time.time() + delay
-        self.sequence += 1
-        heapq.heappush(self.sleeping, (deadline, self.sequence, self.current))
-        self.current = None  # "Disappear"
-        await switch()       # Switch tasks
-        
-    def new_task(self, coro):
-        self.ready.append(coro)
-
-    def run(self):
-        while self.ready or self.sleeping:
-            if not self.ready:
-                deadline, _, coro = heapq.heappop(self.sleeping)
-                delta = deadline - time.time()
-                if delta > 0:
-                    time.sleep(delta)
-                self.ready.append(coro)
-
-            self.current = self.ready.popleft()
-            # Drive as a generator
-            try:
-                self.current.send(None)   # Send to a coroutine
-                if self.current:
-                    self.ready.append(self.current)
-            except StopIteration:
-                pass
-
-
-sched = Scheduler() 
 
 
 class AsyncQueue:
@@ -120,9 +83,10 @@ sched.run()
     Если нет, начинает ждать их появления и отдает контроль управления
 
     Более подробно:
-    Вызывает функцию потребитель передавая ей первый елемент из очереди
-    Если очередь елементов пуста, вставляет в очередь ожидающих геттеров себя же, вместе с переданным ему в аргументы
-    потребителем.
+    Если в очереди есть данные, отдает их
+    Если очередь пуста, вставляет потребителя, из которого был вызван, в очередь потребителей ожидающих данных,
+    забирает потребителя у планировщика, тем самым не давая ему вызвать потребителя еще раз, до тех пор, пока в очереди
+    данных не появятся новые данные. Отдает контроль управления
 
     Идея заключается в том, что при отсутствии данных, вызов потребителя откладывается на более поздний
     момент, когда производитель положит данные в очередь.

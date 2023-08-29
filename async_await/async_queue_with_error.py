@@ -1,6 +1,9 @@
 import time
 from collections import deque
 import heapq
+from scheduler import Scheduler
+
+sched = Scheduler() 
 
 class Awaitable:
     def __await__(self):
@@ -9,44 +12,6 @@ class Awaitable:
 
 def switch():
     return Awaitable()
-
-
-class Scheduler:
-    def __init__(self):
-        self.ready = deque()
-        self.sleeping = [ ] 
-        self.current = None    # Currently executing generator
-        self.sequence = 0
-
-    async def sleep(self, delay):
-        deadline = time.time() + delay
-        self.sequence += 1
-        heapq.heappush(self.sleeping, (deadline, self.sequence, self.current))
-        self.current = None  # "Disappear"
-        await switch()       # Switch tasks
-        
-    def new_task(self, coro):
-        self.ready.append(coro)
-
-    def run(self):
-        while self.ready or self.sleeping:
-            if not self.ready:
-                deadline, _, coro = heapq.heappop(self.sleeping)
-                delta = deadline - time.time()
-                if delta > 0:
-                    time.sleep(delta)
-                self.ready.append(coro)
-
-            self.current = self.ready.popleft()
-            # Drive as a generator
-            try:
-                self.current.send(None)   # Send to a coroutine
-                if self.current:
-                    self.ready.append(self.current)
-            except StopIteration:
-                pass
-
-sched = Scheduler()    # Background scheduler object
 
 
 class QueueClosed(Exception):
@@ -108,3 +73,21 @@ async def consumer(q):
 sched.new_task(producer(aq, 10))
 sched.new_task(consumer(aq))
 sched.run()
+
+
+"""
+    Здесь все тоже самое, что и в файле async_queue.py, только теперь в AsyncQueue есть метод close() закрывающий очередь.
+    Теперь производителю не нужно класть None в очередь, если ему нужно завершить работу, а просто закрыть очередь.
+
+    Метод get() теперь выбрасывает ошибку QueueClosed, если в очереди нет данных и очередь закрыта. Потребитель должен
+    отловить эту ошибку, чтобы корректно завершить свою работу
+
+    Проверка if not self.items: в методе get() заменена на цикл while not self.items:. Это сделано потому что производитель
+    теперь не кладет None в очередь, когда хочет завершить работу, а просто закрывает очередь, оставляя ее пустой и геттер
+    начиная свое выполнение с места await switch(), не должен дойти до строки return self.items.popleft(). Ведь в таком
+    случае произойдет ошибка, так как очередь пуста и там нет даже значения None. Поэтому в случае, если очередь пуста
+    и закрыта, то геттер, начиная свое выполениние с места await switch(), должен зайти на новую итерацию цикла, который
+    работает в случае пустой очереди, не доходя до строки возвращения результата(return self.items.popleft()). В этой
+    новой итерации он проверят не закрыта ли очередь, если закрыта, то выбрасывает исключение QueueClosed, которое
+    перехватывает потребитель.
+"""
