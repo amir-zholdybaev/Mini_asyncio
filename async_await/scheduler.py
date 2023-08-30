@@ -37,7 +37,7 @@ class Scheduler:
                 self.ready.append(coro)
 
             self.current = self.ready.popleft()
-            # Drive as a generator
+
             try:
                 self.current.send(None)   # Send to a coroutine
                 if self.current:
