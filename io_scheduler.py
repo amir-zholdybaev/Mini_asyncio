@@ -4,7 +4,6 @@ import heapq
 from select import select
 
 
-# Callback based scheduler (from earlier)
 class Scheduler:
     def __init__(self):
         self.ready = deque()     # Functions ready to execute
@@ -19,16 +18,13 @@ class Scheduler:
     def call_later(self, delay, func):
         self.sequence += 1
         deadline = time.time() + delay     # Expiration time
-        # Priority queue
         heapq.heappush(self.sleeping, (deadline, self.sequence, func))
 
     def read_wait(self, fileno, func):
-        # Trigger func() when fileno is readable
-        self._read_waiting[fileno] = func
-        
+        self._read_waiting[fileno] = func   # Trigger func() when fileno is readable
+
     def write_wait(self, fileno, func):
-        # Trigger func() when fileno is writeable
-        self._write_waiting[fileno] = func
+        self._write_waiting[fileno] = func  # Trigger func() when fileno is writeable
 
     def run(self):
         while (self.ready or self.sleeping or self._read_waiting or self._write_waiting):
@@ -43,9 +39,8 @@ class Scheduler:
                     timeout = None     # Wait forever
 
                 # Wait for I/O (and sleep)
-                can_read, can_write, _ = select(self._read_waiting,
-                                                self._write_waiting, [], timeout)
-                
+                can_read, can_write, _ = select(self._read_waiting, self._write_waiting, [], timeout)
+
                 for fd in can_read:
                     self.ready.append(self._read_waiting.pop(fd))
                 for fd in can_write:
@@ -94,11 +89,10 @@ class Task:
     def __init__(self, coro):
         self.coro = coro        # "Wrapped coroutine"
 
-    # Make it look like a callback
     def __call__(self):
         try:
-            # Driving the coroutine as before
             sched.current = self
+
             self.coro.send(None)
             if sched.current:
                 sched.ready.append(self)
@@ -110,12 +104,13 @@ class Awaitable:
     def __await__(self):
         yield
 
+
 def switch():
     return Awaitable()
 
+
 sched = Scheduler()    # Background scheduler object
 
-# ----------------
 
 from socket import *
 async def tcp_server(addr):
@@ -140,3 +135,9 @@ async def echo_handler(sock):
 
 sched.new_task(tcp_server(('', 30000)))
 sched.run()
+
+
+"""
+    Суть планировщика при работе с корутинами, заключается в том, чтобы готовую к вызову корутину отметить как
+    текущую/исполняемую и вызвать ее. В случае если в коде этой корутины встречается метод планировщика...
+"""
