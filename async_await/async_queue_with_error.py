@@ -1,9 +1,8 @@
-import time
 from collections import deque
-import heapq
 from scheduler import Scheduler
 
-sched = Scheduler() 
+sched = Scheduler()
+
 
 class Awaitable:
     def __await__(self):

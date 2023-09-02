@@ -7,13 +7,15 @@ class Awaitable:
     def __await__(self):
         yield
 
+
 def switch():
     return Awaitable()
+
 
 class Scheduler:
     def __init__(self):
         self.ready = deque()
-        self.sleeping = [ ] 
+        self.sleeping = []
         self.current = None    # Currently executing generator
         self.sequence = 0
 
@@ -23,7 +25,7 @@ class Scheduler:
         heapq.heappush(self.sleeping, (deadline, self.sequence, self.current))
         self.current = None  # "Disappear"
         await switch()       # Switch tasks
-        
+
     def new_task(self, coro):
         self.ready.append(coro)
 

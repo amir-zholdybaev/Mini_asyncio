@@ -62,7 +62,7 @@ class Scheduler:
         self.ready.append(Task(coro))   # Wrapped coroutine
 
     async def sleep(self, delay):
-        self.call_later(delay, self.current)  
+        self.call_later(delay, self.current)
         self.current = None
         await switch()   # Switch to a new task
 
